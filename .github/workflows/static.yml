@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaxy Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: url('pngtree-fantasy-alien-planet-mountain-and-meadow-2d-game-background-image_13246436.jpg') repeat-x;
+            background-size: cover;
+        }
+        .screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            font-size: 2rem;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            flex-direction: column;
+        }
+        .active {
+            display: flex;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1.5rem;
+            color: #fff;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.1);
+        }
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border: none;
+            border-radius: 10px;
+            font-size: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .control-btn:hover {
+            background-color: rgba(255, 255, 255, 0.7);
+            transform: scale(1.1);
+        }
+        .life-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 200px;
+            height: 20px;
+            background-color: red;
+        }
+        .life {
+            height: 100%;
+            background-color: green;
+            width: 100%;
+        }
+        .score-board {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen" class="screen active">
+        <h1>Galaxy Shooter</h1>
+        <button onclick="startGame()">Comenzar Juego</button>
+    </div>
+    <div id="gameOverScreen" class="screen">
+        <h1>Juego Terminado</h1>
+        <p id="finalScore"></p>
+        <button onclick="startGame()">Reiniciar Juego</button>
+    </div>
+    <div id="winScreen" class="screen">
+        <h1>¡Ganaste!</h1>
+        <button onclick="startGame()">Volver a jugar</button>
+        <button onclick="exitGame()">Salir</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div class="controls">
+        <button class="control-btn" id="leftBtn">←</button>
+        <button class="control-btn" id="upBtn">↑</button>
+        <button class="control-btn" id="rightBtn">→</button>
+        <button class="control-btn" id="shootBtn">■</button>
+        <button class="control-btn" id="punchBtn">👊</button>
+        <button class="control-btn" id="runBtn">🏃</button>
+        <button class="control-btn" id="transformBtn">🔄</button>
+    </div>
+    <div class="life-bar">
+        <div class="life" id="life"></div>
+    </div>
+    <div class="score-board" id="scoreBoard">Puntuación: 0 | Mejor Puntuación: 0</div>
+    <audio id="backgroundMusic" loop>
+        <source src="background-music.mp3" type="audio/mpeg">
+        Tu navegador no soporta el elemento de audio.
+    </audio>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        backgroundMusic.play();
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const playerImg = new Image();
+        playerImg.src = 'png-clipart-2d-computer-graphics-video-game-character-concept-art-2d-game-character-sprites-game-video-game-thumbnail-removebg-preview.png';
+
+        const coinImg = new Image();
+        coinImg.src = 'efd4d41c96000e89acc96998a24679f6-removebg-preview.png';
+
+        const enemyImg = new Image();
+        enemyImg.src = 'png-clipart-video-games-role-playing-game-illustration-sprite-sprite-game-cartoon-thumbnail-removebg-preview (1).png';
+
+        const bulletImg = new Image();
+        bulletImg.src = 'png-transparent-flying-bullets-flying-bullets-bullet-arms-thumbnail-removebg-preview.png';
+
+        const powerUpSpeedImg = new Image();
+        powerUpSpeedImg.src = 'png-clipart-mario-bros-super-mario-world-super-mario-galaxy-super-mario-all-stars-garbage-man-text-orange-removebg-preview.png';
+
+        const powerUpInvincibilityImg = new Image();
+        powerUpInvincibilityImg.src = 'm2i8K9d3G6A0H7b1-removebg-preview.png';
+
+        const powerUpDoubleJumpImg = new Image();
+        powerUpDoubleJumpImg.src = 'png-transparent-super-mario-3d-world-t-shirt-sticker-tanooki-suit-three-dimensional-sun-orange-logo-computer-wallpaper-thumbnail-removebg-preview.png';
+
+        const bloodImg = new Image();
+        bloodImg.src = '2d_blood_textures_by_artinkers_dcs8vlg-fullview-removebg-preview.png';
+
+        let player, coins, enemies, bullets, enemyBullets, powerUps, keys, score, level, difficulty, enemiesKilled;
+        let gameRunning = false;
+        let coinSound = new Audio('coin-sound.mp3');
+        let jumpSound = new Audio('jump-sound.mp3');
+        let gameOverSound = new Audio('game-over-sound.mp3');
+        let shootSound = new Audio('shoot-sound.mp3');
+        let enemyKillSound = new Audio('enemy-kill-sound.mp3');
+        let hitSound = new Audio('hit-sound.mp3');
+        let powerUpSound = new Audio('power-up-sound.mp3');
+        let punchSound = new Audio('punch-sound.mp3');
+
+        function init() {
+            player = {
+                x: 50,
+                y: canvas.height - 150,
+                width: 100,
+                height: 100,
+                speed: 7,
+                dx: 0,
+                dy: 0,
+                gravity: 1,
+                jumpPower: 20,
+                onGround: false,
+                life: 100,
+                powerUp: null,
+                powerUpTime: 0,
+                doubleJump: false,
+                canPunch: true,
+                currentAnimal: 'human'
+            };
+
+            coins = [];
+            enemies = [];
+            bullets = [];
+            enemyBullets = [];
+            powerUps = [];
+            keys = {};
+            score = 0;
+            level = 1;
+            difficulty = 'easy';
+            enemiesKilled = 0;
+
+            for (let i = 0; i < 10; i++) {
+                placeCoin();
+            }
+            for (let i = 0; i < 5; i++) {
+                placeEnemy();
+            }
+
+            placePowerUp();
+            loadHighScore();
+        }
+
+        function drawPlayer() {
+            ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+        }
+
+        function drawCoins() {
+            coins.forEach(coin => {
+                ctx.drawImage(coinImg, coin.x, coin.y, coin.width, coin.height);
+            });
+        }
+
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
+            });
+        }
+
+        function drawBullets() {
+            bullets.forEach(bullet => {
+                ctx.drawImage(bulletImg, bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+
+        function drawEnemyBullets() {
+            enemyBullets.forEach(bullet => {
+                ctx.drawImage(bulletImg, bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+
+        function drawPowerUps() {
+            powerUps.forEach(powerUp => {
+                switch (powerUp.type) {
+                    case 'speed':
+                        ctx.drawImage(powerUpSpeedImg, powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+                        break;
+                    case 'invincibility':
+                        ctx.drawImage(powerUpInvincibilityImg, powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+                        break;
+                    case 'doubleJump':
+                        ctx.drawImage(powerUpDoubleJumpImg, powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+                        break;
+                }
+            });
+        }
+
+        function drawLife() {
+            const lifeBar = document.getElementById('life');
+            lifeBar.style.width = `${player.life}%`;
+        }
+
+        function drawScore() {
+            const scoreBoard = document.getElementById('scoreBoard');
+            scoreBoard.textContent = `Puntuación: ${score}`;
+        }
+
+        function placeCoin() {
+            const coin = {
+                x: Math.random() * (canvas.width - 50),
+                y: canvas.height - 150 - Math.random() * 100,
+                width: 50,
+                height: 50
+            };
+            coins.push(coin);
+        }
+
+        function placeEnemy() {
+            const enemy = {
+                x: Math.random() * (canvas.width - 50) + canvas.width,
+                y: canvas.height - 100,
+                width: 100,
+                height: 100,
+                speed: 2,
+                shootCooldown: Math.random() * 2000 + 1000
+            };
+            enemies.push(enemy);
+        }
+
+        function placePowerUp() {
+            const powerUpTypes = ['speed', 'invincibility', 'doubleJump'];
+            const powerUpType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+            const powerUp = {
+                x: Math.random() * (canvas.width - 50),
+                y: Math.random() * (canvas.height - 150),
+                width: 50,
+                height: 50,
+                type: powerUpType
+            };
+            powerUps.push(powerUp);
+        }
+
+        function detectCollisions() {
+            coins.forEach((coin, index) => {
+                if (player.x < coin.x + coin.width &&
+                    player.x + player.width > coin.x &&
+                    player.y < coin.y + coin.height &&
+                    player.y + player.height > coin.y) {
+                    coins.splice(index, 1);
+                    score += 10;
+                    coinSound.play();
+                    drawScore();
+                    placeCoin();
+                }
+            });
+
+            enemies.forEach((enemy, index) => {
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+                    hitSound.play();
+                    gameOver();
+                }
+            });
+
+            bullets.forEach((bullet, bulletIndex) => {
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y) {
+                        bullets.splice(bulletIndex, 1);
+                        enemies.splice(enemyIndex, 1);
+                        score += 20;
+                        enemiesKilled++;
+                        enemyKillSound.play();
+                        drawScore();
+                        drawBlood(enemy.x, enemy.y);
+                        placeEnemy();
+                    }
+                });
+            });
+
+            enemyBullets.forEach((bullet, bulletIndex) => {
+                if (bullet.x < player.x + player.width &&
+                    bullet.x + bullet.width > player.x &&
+                    bullet.y < player.y + player.height &&
+                    bullet.y + bullet.height > player.y) {
+                    enemyBullets.splice(bulletIndex, 1);
+                    player.life -= 20;
+                    hitSound.play();
+                    drawLife();
+                    if (player.life <= 0) {
+                        gameOver();
+                    }
+                }
+            });
+
+            powerUps.forEach((powerUp, index) => {
+                if (player.x < powerUp.x + powerUp.width &&
+                    player.x + player.width > powerUp.x &&
+                    player.y < powerUp.y + powerUp.height &&
+                    player.y + player.height > powerUp.y) {
+                    powerUps.splice(index, 1);
+                    applyPowerUp(powerUp.type);
+                    powerUpSound.play();
+                    placePowerUp();
+                }
+            });
+        }
+
+        function applyPowerUp(type) {
+            if (type === 'speed') {
+                player.speed *= 2;
+                player.powerUp = 'speed';
+                player.powerUpTime = 5000;
+            } else if (type === 'invincibility') {
+                player.powerUp = 'invincibility';
+                player.powerUpTime = 5000;
+            } else if (type === 'doubleJump') {
+                player.doubleJump = true;
+                player.powerUpTime = 5000;
+            }
+        }
+
+        function updatePlayer() {
+            if (player.powerUp && player.powerUpTime > 0) {
+                player.powerUpTime -= 1000 / 60;
+                if (player.powerUpTime <= 0) {
+                    if (player.powerUp === 'speed') {
+                        player.speed /= 2;
+                    } else if (player.powerUp === 'invincibility') {
+                        player.powerUp = null;
+                    } else if (player.doubleJump) {
+                        player.doubleJump = false;
+                    }
+                    player.powerUp = null;
+                }
+            }
+
+            player.dy += player.gravity;
+            player.x += player.dx;
+            player.y += player.dy;
+
+            if (player.y + player.height > canvas.height) {
+                player.y = canvas.height - player.height;
+                player.onGround = true;
+                player.dy = 0;
+            } else {
+                player.onGround = false;
+            }
+
+            if (keys['ArrowRight'] || keys['right']) {
+                player.dx = player.speed;
+            } else if (keys['ArrowLeft'] || keys['left']) {
+                player.dx = -player.speed;
+            } else {
+                player.dx = 0;
+            }
+
+            if ((keys['ArrowUp'] || keys['up']) && (player.onGround || player.doubleJump)) {
+                player.dy = -player.jumpPower;
+                player.onGround = false;
+                jumpSound.play();
+            }
+
+            if (keys[' '] || keys['shoot']) {
+                shootBullet();
+            }
+
+            if (keys['punch']) {
+                punchEnemy();
+            }
+
+            if (keys['run']) {
+                player.speed = 14;
+            } else {
+                player.speed = 7;
+            }
+
+            if (keys['transform']) {
+                transformPlayer();
+            }
+        }
+
+        function transformPlayer() {
+            const animals = ['cat', 'dog', 'bird'];
+            const currentIndex = animals.indexOf(player.currentAnimal);
+            const nextIndex = (currentIndex + 1) % animals.length;
+            player.currentAnimal = animals[nextIndex];
+            
+            if (player.currentAnimal === 'cat') {
+                player.jumpPower = 30;
+                player.speed = 10;
+            } else if (player.currentAnimal === 'dog') {
+                player.jumpPower = 20;
+                player.speed = 8;
+            } else if (player.currentAnimal === 'bird') {
+                player.jumpPower = 50;
+                player.speed = 5;
+            } else {
+                player.jumpPower = 20;
+                player.speed = 7;
+            }
+        }
+
+        function punchEnemy() {
+            if (player.canPunch) {
+                enemies.forEach((enemy, index) => {
+                    if (player.x < enemy.x + enemy.width &&
+                        player.x + player.width > enemy.x &&
+                        player.y < enemy.y + enemy.height &&
+                        player.y + player.height > enemy.y) {
+                        enemies.splice(index, 1);
+                        score += 20;
+                        enemiesKilled++;
+                        punchSound.play();
+                        drawScore();
+                        drawBlood(enemy.x, enemy.y);
+                        placeEnemy();
+                    }
+                });
+                player.canPunch = false;
+                setTimeout(() => {
+                    player.canPunch = true;
+                }, 500);
+            }
+        }
+
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                enemy.x -= enemy.speed;
+                if (enemy.x + enemy.width < 0) {
+                    enemy.x = Math.random() * (canvas.width - 50) + canvas.width;
+                }
+                if (Math.abs(enemy.x - player.x) < 300) {  
+                    if (enemy.shootCooldown <= 0) {
+                        shootEnemyBullet(enemy);
+                        enemy.shootCooldown = Math.random() * 2000 + 1000;
+                    }
+                }
+                enemy.shootCooldown -= 1000 / 60;
+            });
+        }
+
+        function updateBullets() {
+            bullets.forEach((bullet, index) => {
+                bullet.x += bullet.speed;
+                if (bullet.x > canvas.width) {
+                    bullets.splice(index, 1);
+                }
+            });
+        }
+
+        function updateEnemyBullets() {
+            enemyBullets.forEach((bullet, index) => {
+                bullet.x -= bullet.speed;
+                if (bullet.x < 0) {
+                    enemyBullets.splice(index, 1);
+                }
+            });
+        }
+
+        function shootBullet() {
+            const bullet = {
+                x: player.x + player.width,
+                y: player.y + player.height / 2 - 10,
+                width: 20,
+                height: 10,
+                speed: 10
+            };
+            bullets.push(bullet);
+            shootSound.play();
+        }
+
+        function shootEnemyBullet(enemy) {
+            const bullet = {
+                x: enemy.x,
+                y: enemy.y + enemy.height / 2 - 10,
+                width: 20,
+                height: 10,
+                speed: 5
+            };
+            enemyBullets.push(bullet);
+            shootSound.play();
+        }
+
+        function drawBlood(x, y) {
+            ctx.drawImage(bloodImg, x, y, 50, 50);
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawCoins();
+            drawEnemies();
+            drawBullets();
+            drawEnemyBullets();
+            drawPowerUps();
+            drawLife();
+            detectCollisions();
+            updatePlayer();
+            updateEnemies();
+            updateBullets();
+            updateEnemyBullets();
+
+            requestAnimationFrame(update);
+        }
+
+        function saveHighScore() {
+            const highScore = localStorage.getItem('highScore') || 0;
+            if (score > highScore) {
+                localStorage.setItem('highScore', score);
+            }
+        }
+
+        function loadHighScore() {
+            const highScore = localStorage.getItem('highScore') || 0;
+            const scoreBoard = document.getElementById('scoreBoard');
+            scoreBoard.textContent += ` | Mejor Puntuación: ${highScore}`;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        document.getElementById('leftBtn').addEventListener('mousedown', () => keys['left'] = true);
+        document.getElementById('leftBtn').addEventListener('mouseup', () => keys['left'] = false);
+        document.getElementById('upBtn').addEventListener('mousedown', () => keys['up'] = true);
+        document.getElementById('upBtn').addEventListener('mouseup', () => keys['up'] = false);
+        document.getElementById('rightBtn').addEventListener('mousedown', () => keys['right'] = true);
+        document.getElementById('rightBtn').addEventListener('mouseup', () => keys['right'] = false);
+        document.getElementById('shootBtn').addEventListener('mousedown', () => keys['shoot'] = true);
+        document.getElementById('shootBtn').addEventListener('mouseup', () => keys['shoot'] = false);
+        document.getElementById('punchBtn').addEventListener('mousedown', () => keys['punch'] = true);
+        document.getElementById('punchBtn').addEventListener('mouseup', () => keys['punch'] = false);
+        document.getElementById('runBtn').addEventListener('mousedown', () => keys['run'] = true);
+        document.getElementById('runBtn').addEventListener('mouseup', () => keys['run'] = false);
+        document.getElementById('transformBtn').addEventListener('mousedown', () => keys['transform'] = true);
+        document.getElementById('transformBtn').addEventListener('mouseup', () => keys['transform'] = false);
+
+        function startGame() {
+            document.getElementById('startScreen').classList.remove('active');
+            document.getElementById('gameOverScreen').classList.remove('active');
+            document.getElementById('winScreen').classList.remove('active');
+            gameRunning = true;
+            init();
+            update();
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            gameOverSound.play();
+            saveHighScore();
+            document.getElementById('finalScore').textContent = `Puntuación Final: ${score}`;
+            document.getElementById('gameOverScreen').classList.add('active');
+        }
+
+        function exitGame() {
+            window.close();
+        }
+    </script>
+    <script data-cfasync="false" type="text/javascript" src="//gamemonetize.com/scripts/lib.js"></script>
+    <ins class="adsbygoogle" style="display:none;" data-ad-client="ca-pub-XXXXXXXXXX" data-ad-slot="XXXXXXXXXX"></ins>
+</body>
+</html>
